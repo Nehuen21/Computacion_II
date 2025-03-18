@@ -1,4 +1,4 @@
-# Computación II - [Tu nombre]
+# Computación II - [Nehuen21]
 ## Expectativas  
 - Aprender control de versiones y sistemas operativos.  
 ## Intereses  
