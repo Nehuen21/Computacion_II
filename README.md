@@ -1,7 +1,15 @@
-# Computación II - [Nehuen21]
+# Computación II 
+
+## Informacion 
+-Usuario :  [Nehuen21]
+-Nombre : Nehuen Donozo
+-Mail academico : n.donozo@alumno.um.edu.ar
+- Carrera : Ing informatica
 ## Expectativas  
-- Aprender control de versiones y sistemas operativos.  
+- Aprender otros lenguajes de programacion
+- Aprender como funciona todo lo que tenga que ver con Front end
+- Aprender mas del uso de GIT, repos locales,repos remotos etc
 ## Intereses  
-- Programación en Python, automatización.  
+- Programación en Python, java.  
 ## Hobbies  
-- Tocar guitarra, videojuegos.
+- Jugar al futbol, videojuegos y escuchar musica.
