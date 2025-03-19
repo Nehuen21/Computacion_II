@@ -1,8 +1,3 @@
 Hola Mundo
 total 20
-drwxrwxr-x 3 nehuen nehuen 4096 mar 18 10:27 Clases
--rw-rw-r-- 1 nehuen nehuen    0 mar 18 10:28 README.md
--rw-rw-r-- 1 nehuen nehuen   11 mar 18 10:46 saludo.txt
-drwxrwxr-x 2 nehuen nehuen 4096 mar 18 10:27 TP_1
-drwxrwxr-x 2 nehuen nehuen 4096 mar 18 10:27 TP_2
-drwxrwxr-x 2 nehuen nehuen 4096 mar 18 10:27 TRABAJO_FINAL
+
