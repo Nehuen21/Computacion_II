@@ -4,7 +4,7 @@
 -Usuario :  [Nehuen21]
 -Nombre : Nehuen Donozo
 -Mail academico : n.donozo@alumno.um.edu.ar
-- Carrera : Ing informatica
+-Carrera : Ing informatica
 ## Expectativas  
 - Aprender otros lenguajes de programacion
 - Aprender como funciona todo lo que tenga que ver con Front end
