@@ -2,7 +2,7 @@ import os
 # Crear fifo
 fifo_path = "/tmp/mi_fifo"
 
- # Permisos
+os.mkfifo(fifo_path, 0o600) # Permisos
 
 # Editar fifo (proceso escritor)
 
