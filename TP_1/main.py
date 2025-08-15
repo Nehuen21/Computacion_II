@@ -1,8 +1,12 @@
 import multiprocessing as mp
-from multiprocessing import Pipe, Queue, Event
+from multiprocessing import Pipe, Queue
 import random
 import time
 from datetime import datetime
+import json
+import hashlib
+
+# ---------------- Funciones ---------------- #
 
 def calcular_media_desv(valores):
     if not valores:
@@ -17,7 +21,7 @@ def analizador(nombre, conn, queue, ventana):
     ventana_valores = []
     while True:
         paquete = conn.recv()
-        if paquete is None:
+        if paquete is None:  # señal de finalización
             break
         if nombre == "frecuencia":
             valor = paquete["frecuencia"]
@@ -52,16 +56,50 @@ def generador_pipe(parent_pipes, total):
     for parent in parent_pipes:
         parent.send(None)
 
+def crear_bloque(prev_hash, bloque_datos, timestamp):
+    # Crear hash SHA256
+    contenido = str(prev_hash) + str(bloque_datos) + timestamp
+    hash_bloque = hashlib.sha256(contenido.encode()).hexdigest()
+    bloque = {
+        "timestamp": timestamp,
+        "datos": bloque_datos,
+        "alerta": any_alerta(bloque_datos),
+        "prev_hash": prev_hash,
+        "hash": hash_bloque
+    }
+    return bloque
+
+def any_alerta(bloque_datos):
+    freq = bloque_datos["frecuencia"]["media"]
+    oxi = bloque_datos["oxigeno"]["media"]
+    pres = bloque_datos["presion"]["media"]
+    if freq >= 200 or oxi < 90 or oxi > 100 or pres >= 200:
+        return True
+    return False
+
 def verificador(queues, total):
-    resultados = { "frecuencia": [], "presion": [], "oxigeno": [] }
+    blockchain = []
+    prev_hash = "0"  # primer bloque
     for _ in range(total):
-        bloque = {}
+        bloque_datos = {}
         for tipo, q in queues.items():
             res = q.get()
-            bloque[tipo] = res
+            bloque_datos[tipo] = res
+        bloque = crear_bloque(prev_hash, bloque_datos, bloque_datos["frecuencia"]["timestamp"])
+        prev_hash = bloque["hash"]
+        blockchain.append(bloque)
+        # mostrar por pantalla
+        idx = len(blockchain) - 1
+        print(f"Bloque {idx} | Hash: {bloque['hash']} | Alerta: {bloque['alerta']}")
         print("--- Resultados finales ---")
-        for res in bloque.values():
+        for res in bloque_datos.values():
             print(res)
+    # guardar blockchain en archivo
+    with open("blockchain.json", "w") as f:
+        json.dump(blockchain, f, indent=4)
+    print("\nBlockchain guardada en blockchain.json")
+
+# ---------------- Función Principal ---------------- #
 
 def main():
     ventana = 30
@@ -89,8 +127,10 @@ def main():
     # Generador
     generador_pipe([parent_a, parent_b, parent_c], total)
 
+    # Verificador / Construcción de blockchain
     verificador({"frecuencia": q_a, "presion": q_b, "oxigeno": q_c}, total)
 
+    # Esperar que finalicen los analizadores
     proc_a.join()
     proc_b.join()
     proc_c.join()
