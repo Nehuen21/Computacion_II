@@ -1,126 +1,99 @@
 import multiprocessing as mp
-from collections import deque
-from datetime import datetime
+from multiprocessing import Pipe, Queue, Event
 import random
 import time
-import statistics
+from datetime import datetime
 
+def calcular_media_desv(valores):
+    if not valores:
+        return 0, 0
+    n = len(valores)
+    media = sum(valores) / n
+    varianza = sum((x - media) ** 2 for x in valores) / n
+    desv = varianza ** 0.5
+    return media, desv
 
-# =====================
-# Funciones de análisis
-# =====================
-def analizador_frecuencia(conn, ventana, cola_salida):
-    """Analiza frecuencia cardíaca."""
-    buffer = deque(maxlen=ventana)
+def analizador(nombre, conn, queue, ventana):
+    ventana_valores = []
     while True:
         paquete = conn.recv()
         if paquete is None:
             break
-        buffer.append(paquete["frecuencia"])
-        media = statistics.mean(buffer)
-        desv = statistics.pstdev(buffer) if len(buffer) > 1 else 0.0
-        cola_salida.put({
-            "tipo": "frecuencia",
+        if nombre == "frecuencia":
+            valor = paquete["frecuencia"]
+        elif nombre == "oxigeno":
+            valor = paquete["oxigeno"]
+        else:  # presion
+            valor = paquete["presion"][0]  # sistólica
+        ventana_valores.append(valor)
+        if len(ventana_valores) > ventana:
+            ventana_valores.pop(0)
+        media, desv = calcular_media_desv(ventana_valores)
+        resultado = {
+            "tipo": nombre,
             "timestamp": paquete["timestamp"],
             "media": media,
             "desv": desv
-        })
+        }
+        queue.put(resultado)
 
-
-def analizador_presion(conn, ventana, cola_salida):
-    """Analiza presión arterial (solo sistólica para ejemplo)."""
-    buffer = deque(maxlen=ventana)
-    while True:
-        paquete = conn.recv()
-        if paquete is None:
-            break
-        sistolica = paquete["presion"][0]
-        buffer.append(sistolica)
-        media = statistics.mean(buffer)
-        desv = statistics.pstdev(buffer) if len(buffer) > 1 else 0.0
-        cola_salida.put({
-            "tipo": "presion",
-            "timestamp": paquete["timestamp"],
-            "media": media,
-            "desv": desv
-        })
-
-
-def analizador_oxigeno(conn, ventana, cola_salida):
-    """Analiza saturación de oxígeno."""
-    buffer = deque(maxlen=ventana)
-    while True:
-        paquete = conn.recv()
-        if paquete is None:
-            break
-        buffer.append(paquete["oxigeno"])
-        media = statistics.mean(buffer)
-        desv = statistics.pstdev(buffer) if len(buffer) > 1 else 0.0
-        cola_salida.put({
-            "tipo": "oxigeno",
-            "timestamp": paquete["timestamp"],
-            "media": media,
-            "desv": desv
-        })
-
-
-# =====================
-# Proceso principal
-# =====================
-def main(samples=60, ventana=30):
-    # Creación de colas de salida
-    cola_frec = mp.Queue()
-    cola_pres = mp.Queue()
-    cola_oxi = mp.Queue()
-
-    # Creación de Pipes unidireccionales (padre -> hijo)
-    child_a, parent_a = mp.Pipe(duplex=False)  # hijo lee, padre escribe
-    child_b, parent_b = mp.Pipe(duplex=False)
-    child_c, parent_c = mp.Pipe(duplex=False)
-
-    # Lanzar procesos de análisis
-    p_a = mp.Process(target=analizador_frecuencia, args=(child_a, ventana, cola_frec), name="Proc-A-Frecuencia")
-    p_b = mp.Process(target=analizador_presion, args=(child_b, ventana, cola_pres), name="Proc-B-Presion")
-    p_c = mp.Process(target=analizador_oxigeno, args=(child_c, ventana, cola_oxi), name="Proc-C-Oxigeno")
-
-    p_a.start()
-    p_b.start()
-    p_c.start()
-
-    # Generar datos simulados
-    for _ in range(samples):
+def generador_pipe(parent_pipes, total):
+    for _ in range(total):
         paquete = {
             "timestamp": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
             "frecuencia": random.randint(60, 180),
             "presion": [random.randint(110, 180), random.randint(70, 110)],
             "oxigeno": random.randint(90, 100)
         }
-
-        parent_a.send(paquete)
-        parent_b.send(paquete)
-        parent_c.send(paquete)
-
+        for parent in parent_pipes:
+            parent.send(paquete)
         time.sleep(1)
+    # señal de finalización
+    for parent in parent_pipes:
+        parent.send(None)
 
-    # Enviar señal de terminación a los hijos
-    parent_a.send(None)
-    parent_b.send(None)
-    parent_c.send(None)
+def verificador(queues, total):
+    resultados = { "frecuencia": [], "presion": [], "oxigeno": [] }
+    for _ in range(total):
+        bloque = {}
+        for tipo, q in queues.items():
+            res = q.get()
+            bloque[tipo] = res
+        print("--- Resultados finales ---")
+        for res in bloque.values():
+            print(res)
 
-    # Esperar que terminen
-    p_a.join()
-    p_b.join()
-    p_c.join()
+def main():
+    ventana = 30
+    total = 60
 
-    # Mostrar resultados acumulados de las colas
-    print("\n--- Resultados finales ---")
-    while not cola_frec.empty():
-        print(cola_frec.get())
-    while not cola_pres.empty():
-        print(cola_pres.get())
-    while not cola_oxi.empty():
-        print(cola_oxi.get())
+    # Pipes para cada analizador
+    parent_a, child_a = Pipe()
+    parent_b, child_b = Pipe()
+    parent_c, child_c = Pipe()
 
+    # Queues para resultados al verificador
+    q_a = Queue()
+    q_b = Queue()
+    q_c = Queue()
+
+    # Procesos Analizadores
+    proc_a = mp.Process(target=analizador, args=("frecuencia", child_a, q_a, ventana))
+    proc_b = mp.Process(target=analizador, args=("presion", child_b, q_b, ventana))
+    proc_c = mp.Process(target=analizador, args=("oxigeno", child_c, q_c, ventana))
+
+    proc_a.start()
+    proc_b.start()
+    proc_c.start()
+
+    # Generador
+    generador_pipe([parent_a, parent_b, parent_c], total)
+
+    verificador({"frecuencia": q_a, "presion": q_b, "oxigeno": q_c}, total)
+
+    proc_a.join()
+    proc_b.join()
+    proc_c.join()
 
 if __name__ == "__main__":
     main()
