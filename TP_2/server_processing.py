@@ -7,7 +7,7 @@ import json
 import socket
 
 # --- Importaciones de nuestros módulos ---
-from processor.task import run_heavy_processing
+from processor.tasks import run_heavy_processing
 
 # Pool de procesos global
 process_pool = None
